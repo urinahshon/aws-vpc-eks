@@ -74,7 +74,6 @@ jobs:
     name: Apply gateway/network
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
-    environment: gateway
     permissions:
       id-token: write
       contents: read

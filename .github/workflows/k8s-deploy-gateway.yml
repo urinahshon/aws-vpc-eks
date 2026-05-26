@@ -1,0 +1,85 @@
+name: K8s Deploy — Gateway
+
+on:
+  workflow_run:
+    workflows: ["K8s Deploy — Backend"]
+    types: [completed]
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      nlb_hostname:
+        description: "Backend internal NLB hostname (required when not chained from backend workflow)"
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION:      ${{ vars.AWS_REGION || 'us-west-1' }}
+  GATEWAY_CLUSTER: eks-gateway
+
+jobs:
+  k8s-deploy-gateway:
+    name: Deploy gateway workloads
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Download NLB hostname artifact
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/download-artifact@v4
+        with:
+          name: nlb-hostname
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve NLB hostname
+        id: nlb
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "hostname=${{ inputs.nlb_hostname }}" >> $GITHUB_OUTPUT
+          else
+            echo "hostname=$(cat nlb-hostname.txt)" >> $GITHUB_OUTPUT
+          fi
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ env.GATEWAY_CLUSTER }} \
+            --region ${{ env.AWS_REGION }} --alias eks-gateway
+      - name: Inject backend NLB hostname
+        run: |
+          sed -i "s|BACKEND_HOST|${{ steps.nlb.outputs.hostname }}|g" \
+            k8s/gateway/configmap.yaml
+      - name: Inject gateway IRSA role ARN
+        run: |
+          sed -i "s|GATEWAY_IRSA_ROLE_ARN|${{ secrets.GATEWAY_IRSA_ROLE_ARN }}|g" \
+            k8s/gateway/serviceaccount.yaml
+      - name: Apply manifests
+        run: |
+          kubectl apply -f k8s/gateway/namespace.yaml        --context=eks-gateway
+          kubectl apply -f k8s/gateway/serviceaccount.yaml   --context=eks-gateway
+          kubectl apply -f k8s/gateway/networkpolicy.yaml    --context=eks-gateway
+          kubectl apply -f k8s/gateway/configmap.yaml        --context=eks-gateway
+          kubectl apply -f k8s/gateway/deployment.yaml       --context=eks-gateway
+          kubectl apply -f k8s/gateway/service.yaml          --context=eks-gateway
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/gateway -n sentinel-gateway --context=eks-gateway --timeout=300s
+      - name: Print public URL
+        run: |
+          for i in $(seq 1 30); do
+            H=$(kubectl get svc gateway-service -n sentinel-gateway --context=eks-gateway \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            [ -n "$H" ] && { echo "::notice::Gateway URL: http://$H"; break; }
+            sleep 10
+          done

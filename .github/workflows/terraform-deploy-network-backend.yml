@@ -74,7 +74,6 @@ jobs:
     name: Apply backend/network
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
-    environment: backend
     permissions:
       id-token: write
       contents: read
