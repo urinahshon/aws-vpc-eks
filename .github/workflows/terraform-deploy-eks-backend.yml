@@ -1,0 +1,94 @@
+name: Terraform Deploy — EKS Backend
+
+# Depends on terraform-deploy-network and terraform-deploy-iam completing first.
+# EKS reads subnet IDs and security group IDs from network state,
+# and IAM role ARNs from iam state.
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "terraform/environments/backend/eks/**"
+      - "terraform/modules/eks/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION:     ${{ vars.AWS_REGION || 'us-west-1' }}
+  TF_BACKEND_EKS: terraform/environments/backend/eks
+
+jobs:
+  validate:
+    name: Validate backend/eks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.15.4" }
+      - run: terraform init -backend=false
+        working-directory: ${{ env.TF_BACKEND_EKS }}
+      - run: terraform validate
+        working-directory: ${{ env.TF_BACKEND_EKS }}
+
+  lint:
+    name: Format & TFLint
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.15.4" }
+      - run: terraform fmt -check -recursive terraform/
+      - uses: terraform-linters/setup-tflint@v4
+        with: { tflint_version: "v0.50.3" }
+      - run: tflint --init
+      - run: tflint --recursive --chdir=terraform
+
+  plan:
+    name: Plan backend/eks
+    runs-on: ubuntu-latest
+    needs: [validate, lint]
+    if: github.event_name == 'pull_request'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.15.4" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Init
+        working-directory: ${{ env.TF_BACKEND_EKS }}
+        run: terraform init
+      - name: Plan
+        working-directory: ${{ env.TF_BACKEND_EKS }}
+        run: terraform plan -input=false -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}"
+
+  apply:
+    name: Apply backend/eks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment: backend
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.15.4" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Init
+        working-directory: ${{ env.TF_BACKEND_EKS }}
+        run: terraform init
+      - name: Apply
+        working-directory: ${{ env.TF_BACKEND_EKS }}
+        run: terraform apply -auto-approve -input=false -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}"
