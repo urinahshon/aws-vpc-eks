@@ -1,6 +1,6 @@
 resource "aws_security_group" "runner" {
   name        = "eks-backend-gh-runner"
-  description = "GitHub Actions runner — outbound-only; SSM does not need inbound"
+  description = "GitHub Actions runner - outbound-only; SSM does not need inbound"
   vpc_id      = data.terraform_remote_state.network.outputs.vpc_id
 
   egress {
