@@ -68,7 +68,10 @@ jobs:
         run: terraform init
       - name: Plan
         working-directory: ${{ env.TF_BACKEND_EKS }}
-        run: terraform plan -input=false -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}"
+        run: |
+          terraform plan -input=false \
+            -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" \
+            -var="tf_state_bucket=aws-vpc-eks-tfstate-721500739616"
 
   apply:
     name: Apply backend/eks
@@ -90,4 +93,7 @@ jobs:
         run: terraform init
       - name: Apply
         working-directory: ${{ env.TF_BACKEND_EKS }}
-        run: terraform apply -auto-approve -input=false -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}"
+        run: |
+          terraform apply -auto-approve -input=false \
+            -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" \
+            -var="tf_state_bucket=aws-vpc-eks-tfstate-721500739616"
