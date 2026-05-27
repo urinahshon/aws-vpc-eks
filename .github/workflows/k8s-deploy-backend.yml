@@ -1,14 +1,6 @@
 name: K8s Deploy — Backend
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - "k8s/backend/**"
-  workflow_run:
-    workflows: ["Terraform Deploy — EKS Backend", "Terraform Deploy — EKS Gateway"]
-    types: [completed]
-    branches: ["main"]
   workflow_dispatch:
 
 permissions:
@@ -22,17 +14,11 @@ jobs:
   k8s-deploy-backend:
     name: Deploy backend workloads
     runs-on: [self-hosted, backend-vpc]
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'push' ||
-      github.event.workflow_run.conclusion == 'success'
     permissions:
       id-token: write
       contents: read
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon

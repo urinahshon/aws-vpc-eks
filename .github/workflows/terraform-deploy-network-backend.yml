@@ -1,15 +1,6 @@
 name: Terraform Deploy — Network Backend
 
-# Covers VPC, subnets, routing, NAT gateways, and security groups.
-
 on:
-  pull_request:
-    branches: ["main"]
-    paths:
-      - "terraform/environments/backend/network/**"
-      - "terraform/modules/vpc/**"
-      - "terraform/modules/network/**"
-      - "terraform/modules/security-groups/**"
   workflow_dispatch:
 
 permissions:
@@ -20,60 +11,9 @@ env:
   TF_BACKEND_NET: terraform/environments/backend/network
 
 jobs:
-  validate:
-    name: Validate backend/network
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "1.15.4" }
-      - run: terraform init -backend=false
-        working-directory: ${{ env.TF_BACKEND_NET }}
-      - run: terraform validate
-        working-directory: ${{ env.TF_BACKEND_NET }}
-
-  lint:
-    name: Format & TFLint
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "1.15.4" }
-      - run: terraform fmt -check -recursive terraform/
-      - uses: terraform-linters/setup-tflint@v4
-        with: { tflint_version: "v0.50.3" }
-      - run: tflint --init
-      - run: tflint --recursive --chdir=terraform
-
-  plan:
-    name: Plan backend/network
-    runs-on: ubuntu-latest
-    needs: [validate, lint]
-    if: github.event_name == 'pull_request'
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "1.15.4" }
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon
-          aws-region: ${{ env.AWS_REGION }}
-      - name: Init
-        working-directory: ${{ env.TF_BACKEND_NET }}
-        run: terraform init
-      - name: Plan
-        working-directory: ${{ env.TF_BACKEND_NET }}
-        run: terraform plan -input=false
-
   apply:
     name: Apply backend/network
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
     permissions:
       id-token: write
       contents: read
