@@ -112,6 +112,7 @@ data "aws_iam_policy_document" "ec2_for_eks" {
       "ec2:RunInstances",
       "ec2:DescribeInstances", "ec2:DescribeInstanceTypes",
       "ec2:DescribeInstanceTypeOfferings",
+      "ec2:DescribeInstanceCreditSpecifications",
       "ec2:DescribeKeyPairs",
       "ec2:DescribeImages",
       "ec2:DescribeVolumes", "ec2:DescribeVolumeAttribute",

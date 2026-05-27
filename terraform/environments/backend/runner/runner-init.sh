@@ -6,11 +6,10 @@ set -euxo pipefail
 REPO="${github_repo}"
 PAT="${github_pat}"
 REGION="${aws_region}"
-RUNNER_VERSION="2.317.0"
 RUNNER_DIR="/home/runner/actions-runner"
 
 # ── System dependencies ───────────────────────────────────────────────────────
-dnf install -y jq git libicu
+dnf install -y jq git libicu tar
 
 # kubectl (used by the k8s-deploy-backend workflow)
 KUBE_VER=$(curl -sL https://dl.k8s.io/release/stable.txt)
@@ -21,7 +20,14 @@ chmod +x /usr/local/bin/kubectl
 # ── Runner user ───────────────────────────────────────────────────────────────
 useradd -m -s /bin/bash runner 2>/dev/null || true
 
-# ── GitHub Actions runner binary ──────────────────────────────────────────────
+# ── Resolve latest GitHub Actions runner version ──────────────────────────────
+RUNNER_VERSION=$(curl -sf \
+  -H "Authorization: Bearer $PAT" \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/actions/runner/releases/latest" \
+  | jq -r '.tag_name' | sed 's/^v//')
+
+# ── Download and extract runner ───────────────────────────────────────────────
 mkdir -p $RUNNER_DIR
 curl -sLo /tmp/runner.tar.gz \
   "https://github.com/actions/runner/releases/download/v$RUNNER_VERSION/actions-runner-linux-x64-$RUNNER_VERSION.tar.gz"
@@ -37,16 +43,13 @@ REG_TOKEN=$(curl -sf \
   | jq -r '.token')
 
 # ── Register runner (must run as non-root) ────────────────────────────────────
-sudo -u runner bash -c "
-  cd $RUNNER_DIR
-  ./config.sh \
-    --url 'https://github.com/$REPO' \
-    --token '$REG_TOKEN' \
-    --name 'backend-vpc-runner' \
-    --labels 'self-hosted,backend-vpc' \
-    --unattended \
-    --replace
-"
+sudo -u runner $RUNNER_DIR/config.sh \
+  --url "https://github.com/$REPO" \
+  --token "$REG_TOKEN" \
+  --name "backend-vpc-runner" \
+  --labels "self-hosted,backend-vpc" \
+  --unattended \
+  --replace
 
 # ── Install systemd service and start ─────────────────────────────────────────
 cd $RUNNER_DIR

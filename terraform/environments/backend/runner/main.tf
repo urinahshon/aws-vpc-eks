@@ -14,6 +14,17 @@ resource "aws_security_group" "runner" {
   tags = { Name = "eks-backend-gh-runner" }
 }
 
+# Allow the runner to reach the EKS private API endpoint so kubectl works.
+resource "aws_security_group_rule" "runner_to_cluster_api" {
+  description              = "GitHub Actions runner to EKS API server (kubectl port 443)"
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.runner.id
+  security_group_id        = data.terraform_remote_state.network.outputs.cluster_sg_id
+}
+
 resource "aws_instance" "runner" {
   ami                    = data.aws_ami.al2023.id
   instance_type          = var.instance_type
