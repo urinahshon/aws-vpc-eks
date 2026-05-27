@@ -5,7 +5,7 @@ module "security_groups" {
 
   additional_node_sg_ingress = [
     {
-      description = "Internet → gateway pods via public NLB (port 80 only)"
+      description = "Internet to gateway pods via public NLB (port 80 only)"
       from_port   = 80
       to_port     = 80
       protocol    = "tcp"
