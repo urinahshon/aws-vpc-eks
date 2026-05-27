@@ -105,6 +105,19 @@ data "aws_iam_policy_document" "ec2_for_eks" {
     ]
     resources = ["*"]
   }
+
+  statement {
+    sid = "RunInstances"
+    actions = [
+      "ec2:RunInstances",
+      "ec2:DescribeInstances", "ec2:DescribeInstanceTypes",
+      "ec2:DescribeInstanceTypeOfferings",
+      "ec2:DescribeKeyPairs",
+      "ec2:DescribeImages",
+      "ec2:DescribeVolumes", "ec2:DescribeVolumeAttribute",
+    ]
+    resources = ["*"]
+  }
 }
 
 # ── IAM for EKS (scoped to permitted eks-* and sentinel-* prefixes) ──────────
