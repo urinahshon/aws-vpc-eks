@@ -92,6 +92,21 @@ data "aws_iam_policy_document" "eks" {
   }
 }
 
+# ── EC2 resources created by EKS (launch templates, key pairs, etc.) ─────────
+
+data "aws_iam_policy_document" "ec2_for_eks" {
+  statement {
+    sid = "LaunchTemplate"
+    actions = [
+      "ec2:CreateLaunchTemplate", "ec2:DeleteLaunchTemplate",
+      "ec2:DescribeLaunchTemplates", "ec2:DescribeLaunchTemplateVersions",
+      "ec2:ModifyLaunchTemplate",
+      "ec2:CreateLaunchTemplateVersion", "ec2:DeleteLaunchTemplateVersions",
+    ]
+    resources = ["*"]
+  }
+}
+
 # ── IAM for EKS (scoped to permitted eks-* and sentinel-* prefixes) ──────────
 
 data "aws_iam_policy_document" "iam_for_eks" {
@@ -219,6 +234,12 @@ resource "aws_iam_role_policy" "eks" {
   name   = "eks"
   role   = aws_iam_role.ci.name
   policy = data.aws_iam_policy_document.eks.json
+}
+
+resource "aws_iam_role_policy" "ec2_for_eks" {
+  name   = "ec2-for-eks"
+  role   = aws_iam_role.ci.name
+  policy = data.aws_iam_policy_document.ec2_for_eks.json
 }
 
 resource "aws_iam_role_policy" "iam_for_eks" {
