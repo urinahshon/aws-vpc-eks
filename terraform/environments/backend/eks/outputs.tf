@@ -1,25 +1,5 @@
-# These outputs are consumed by the gateway environment via terraform_remote_state.
-# Any value the gateway needs to set up peering or routing must be exported here.
-
-output "vpc_id" {
-  value = module.vpc.vpc_id
-}
-
-output "vpc_cidr" {
-  value = module.vpc.vpc_cidr_block
-}
-
-output "private_subnet_ids" {
-  value = module.vpc.private_subnet_ids
-}
-
-output "private_route_table_ids" {
-  description = "Used by gateway environment to add the return peering route"
-  value       = module.networking.private_route_table_ids
-}
-
 output "node_sg_id" {
-  value = module.security_groups.node_sg_id
+  value = data.terraform_remote_state.network.outputs.node_sg_id
 }
 
 output "cluster_name" {
