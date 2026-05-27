@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-nginx-config
+  namespace: sentinel-backend
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+
+        location /health {
+            return 200 "OK\n";
+            add_header Content-Type text/plain;
+        }
+
+        location / {
+            return 200 "Hello from Rapyd Sentinel Backend\n";
+            add_header Content-Type text/plain;
+        }
+    }

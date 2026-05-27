@@ -51,10 +51,26 @@ jobs:
       - name: Wait for rollout
         run: kubectl rollout status deployment/gateway -n sentinel-gateway --context=eks-gateway --timeout=300s
       - name: Print public URL
+        id: nlb
         run: |
           for i in $(seq 1 30); do
             H=$(kubectl get svc gateway-service -n sentinel-gateway --context=eks-gateway \
               -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
-            [ -n "$H" ] && { echo "::notice::Gateway URL: http://$H"; break; }
+            [ -n "$H" ] && { echo "::notice::Gateway URL: http://$H"; echo "hostname=$H" >> $GITHUB_OUTPUT; break; }
             sleep 10
           done
+          [ -z "$H" ] && { echo "NLB hostname timeout"; exit 1; }
+      - name: Validate end-to-end proxy to backend
+        run: |
+          URL="http://${{ steps.nlb.outputs.hostname }}"
+          for i in $(seq 1 18); do
+            BODY=$(curl -sf --max-time 10 "$URL" 2>/dev/null || true)
+            if echo "$BODY" | grep -q "Hello from"; then
+              echo "::notice::E2E validation passed — response: $BODY"
+              exit 0
+            fi
+            echo "Attempt $i — got: '${BODY:-<no response>}' — retry in 10s"
+            sleep 10
+          done
+          echo "::error::E2E validation failed: proxy did not return backend response after 3 minutes"
+          exit 1
