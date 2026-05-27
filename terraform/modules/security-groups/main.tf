@@ -1,5 +1,5 @@
 resource "aws_security_group" "cluster" {
-  name        = "sg-${var.cluster_name}-cluster"
+  name        = "${var.cluster_name}-cluster-sg"
   description = "EKS control plane security group"
   vpc_id      = var.vpc_id
 
@@ -11,11 +11,11 @@ resource "aws_security_group" "cluster" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = merge(var.tags, { Name = "sg-${var.cluster_name}-cluster" })
+  tags = merge(var.tags, { Name = "${var.cluster_name}-cluster-sg" })
 }
 
 resource "aws_security_group" "nodes" {
-  name        = "sg-${var.cluster_name}-nodes"
+  name        = "${var.cluster_name}-nodes-sg"
   description = "EKS managed node group security group"
   vpc_id      = var.vpc_id
 
@@ -28,7 +28,7 @@ resource "aws_security_group" "nodes" {
   }
 
   tags = merge(var.tags, {
-    Name                                        = "sg-${var.cluster_name}-nodes"
+    Name                                        = "${var.cluster_name}-nodes-sg"
     "kubernetes.io/cluster/${var.cluster_name}" = "owned"
   })
 }
