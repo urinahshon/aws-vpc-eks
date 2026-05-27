@@ -44,7 +44,7 @@ resource "aws_security_group_rule" "nodes_self" {
 }
 
 resource "aws_security_group_rule" "nodes_from_cluster" {
-  description              = "Control plane → nodes (webhooks, exec)"
+  description              = "Control plane to nodes (webhooks, exec)"
   type                     = "ingress"
   from_port                = 0
   to_port                  = 65535
@@ -54,7 +54,7 @@ resource "aws_security_group_rule" "nodes_from_cluster" {
 }
 
 resource "aws_security_group_rule" "cluster_from_nodes" {
-  description              = "Nodes → API server (port 443)"
+  description              = "Nodes to API server (port 443)"
   type                     = "ingress"
   from_port                = 443
   to_port                  = 443
