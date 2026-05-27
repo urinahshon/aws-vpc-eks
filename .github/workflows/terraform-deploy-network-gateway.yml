@@ -91,3 +91,30 @@ jobs:
       - name: Apply
         working-directory: ${{ env.TF_GATEWAY_NET }}
         run: terraform apply -auto-approve -input=false
+
+  peering:
+    name: Apply peering
+    runs-on: ubuntu-latest
+    needs: [apply]
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.15.4" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Init
+        working-directory: terraform/environments/peering
+        run: terraform init
+      - name: Apply
+        working-directory: terraform/environments/peering
+        run: |
+          terraform apply -auto-approve -input=false \
+            -var="tf_state_bucket=aws-vpc-eks-tfstate-721500739616" \
+            -var="gateway_state_key=environments/gateway/network/terraform.tfstate" \
+            -var="backend_state_key=environments/backend/network/terraform.tfstate"
