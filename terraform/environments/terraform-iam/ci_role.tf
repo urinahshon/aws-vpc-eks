@@ -266,3 +266,42 @@ resource "aws_iam_role_policy" "terraform_state" {
   role   = aws_iam_role.ci.name
   policy = data.aws_iam_policy_document.terraform_state.json
 }
+
+# ── Runner infrastructure (EC2 instance + instance profile) ──────────────────
+
+data "aws_iam_policy_document" "runner_infra" {
+  statement {
+    sid = "EC2RunnerLifecycle"
+    actions = [
+      "ec2:TerminateInstances",
+      "ec2:StopInstances",
+      "ec2:StartInstances",
+      "ec2:ModifyInstanceAttribute",
+      "ec2:DescribeInstanceAttribute",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "IAMInstanceProfile"
+    actions = [
+      "iam:CreateInstanceProfile",
+      "iam:DeleteInstanceProfile",
+      "iam:GetInstanceProfile",
+      "iam:AddRoleToInstanceProfile",
+      "iam:RemoveRoleFromInstanceProfile",
+      "iam:TagInstanceProfile",
+      "iam:UntagInstanceProfile",
+    ]
+    resources = [
+      "arn:aws:iam::${var.aws_account_id}:instance-profile/eks-*",
+    ]
+  }
+
+}
+
+resource "aws_iam_role_policy" "runner_infra" {
+  name   = "runner-infra"
+  role   = aws_iam_role.ci.name
+  policy = data.aws_iam_policy_document.runner_infra.json
+}
