@@ -3,8 +3,15 @@ name: Terraform Deploy — Backend Runner
 on:
   workflow_dispatch:
     inputs:
+      action:
+        description: "Action to perform"
+        type: choice
+        options:
+          - apply
+          - destroy
+        default: apply
       force_replace:
-        description: "Recreate the runner instance (re-runs user data)"
+        description: "Recreate the runner instance (re-runs user data) — apply only"
         type: boolean
         default: false
 
@@ -17,11 +24,9 @@ env:
 
 jobs:
   apply:
+    if: ${{ inputs.action == 'apply' }}
     name: Apply backend/runner
     runs-on: ubuntu-latest
-    # GitHub environment that holds GH_RUNNER_PAT.
-    # Create it at: Settings → Environments → New environment → "backend-runner"
-    # then add a secret named GH_RUNNER_PAT (a classic PAT with repo scope).
     environment: backend-runner
     permissions:
       id-token: write
@@ -53,3 +58,29 @@ jobs:
           ID=$(terraform output -raw runner_instance_id)
           echo "::notice::Runner instance: $ID"
           echo "::notice::SSM: aws ssm start-session --target $ID --region ${{ env.AWS_REGION }}"
+
+  destroy:
+    if: ${{ inputs.action == 'destroy' }}
+    name: Destroy backend/runner
+    runs-on: ubuntu-latest
+    environment: backend-runner
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.15.4" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init
+      - name: Destroy
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform destroy -auto-approve -input=false \
+            -var="tf_state_bucket=aws-vpc-eks-tfstate-721500739616" \
+            -var="github_pat=${{ secrets.GH_RUNNER_PAT }}"

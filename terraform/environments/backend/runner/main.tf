@@ -1,10 +1,10 @@
 resource "aws_security_group" "runner" {
   name        = "eks-backend-gh-runner"
   description = "GitHub Actions runner - outbound-only; SSM does not need inbound"
-  vpc_id      = data.terraform_remote_state.network.outputs.vpc_id
+  vpc_id      = data.terraform_remote_state.gateway_network.outputs.vpc_id
 
   egress {
-    description = "Allow all outbound; NAT gateway routes to GitHub and AWS APIs"
+    description = "Allow all outbound; IGW/NAT routes to GitHub and AWS APIs"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -14,21 +14,23 @@ resource "aws_security_group" "runner" {
   tags = { Name = "eks-backend-gh-runner" }
 }
 
-# Allow the runner to reach the EKS private API endpoint so kubectl works.
+# Allow the runner to reach the backend EKS private API endpoint so kubectl works.
+# Cross-VPC peering: source_security_group_id cannot span VPCs, so we use the
+# gateway VPC CIDR as the source.
 resource "aws_security_group_rule" "runner_to_cluster_api" {
-  description              = "GitHub Actions runner to EKS API server (kubectl port 443)"
-  type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.runner.id
-  security_group_id        = data.terraform_remote_state.network.outputs.cluster_sg_id
+  description       = "GitHub Actions runner (gateway VPC) to backend EKS API server (kubectl port 443)"
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = [data.terraform_remote_state.gateway_network.outputs.vpc_cidr]
+  security_group_id = data.terraform_remote_state.backend_network.outputs.cluster_sg_id
 }
 
 resource "aws_instance" "runner" {
   ami                    = data.aws_ami.al2023.id
   instance_type          = var.instance_type
-  subnet_id              = data.terraform_remote_state.network.outputs.private_subnet_ids[0]
+  subnet_id              = data.terraform_remote_state.gateway_network.outputs.private_subnet_ids[0]
   iam_instance_profile   = aws_iam_instance_profile.runner.name
   vpc_security_group_ids = [aws_security_group.runner.id]
 
@@ -44,9 +46,6 @@ resource "aws_instance" "runner" {
     encrypted   = true
   }
 
-  # Prevent accidental replacement when a newer AL2023 AMI is published.
-  # user_data is intentionally NOT ignored: if the PAT rotates, the next apply
-  # recreates the instance so the new token is used for runner re-registration.
   lifecycle {
     ignore_changes = [ami]
   }

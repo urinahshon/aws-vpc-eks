@@ -1,4 +1,13 @@
-data "terraform_remote_state" "network" {
+data "terraform_remote_state" "gateway_network" {
+  backend = "s3"
+  config = {
+    bucket = var.tf_state_bucket
+    key    = "environments/gateway/network/terraform.tfstate"
+    region = var.aws_region
+  }
+}
+
+data "terraform_remote_state" "backend_network" {
   backend = "s3"
   config = {
     bucket = var.tf_state_bucket
