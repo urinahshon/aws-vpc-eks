@@ -1,6 +1,6 @@
 resource "aws_security_group" "bastion" {
   name        = "eks-gateway-bastion"
-  description = "Bastion — outbound-only; SSM Session Manager needs no inbound ports"
+  description = "Bastion - outbound-only; SSM Session Manager needs no inbound ports"
   vpc_id      = data.terraform_remote_state.gateway_network.outputs.vpc_id
 
   egress {

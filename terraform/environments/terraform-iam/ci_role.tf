@@ -93,6 +93,7 @@ data "aws_iam_policy_document" "eks" {
       "eks:UpdateNodegroupVersion", "eks:ListNodegroups",
       "eks:AssociateIdentityProviderConfig", "eks:DisassociateIdentityProviderConfig",
       "eks:DescribeIdentityProviderConfig", "eks:ListIdentityProviderConfigs",
+      "eks:DescribeUpdate", "eks:ListUpdates",
       "eks:CreateAccessEntry", "eks:DeleteAccessEntry",
       "eks:DescribeAccessEntry", "eks:ListAccessEntries",
       "eks:AssociateAccessPolicy", "eks:DisassociateAccessPolicy",

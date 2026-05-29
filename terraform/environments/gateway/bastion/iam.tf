@@ -10,7 +10,7 @@ data "aws_iam_policy_document" "bastion_assume" {
 
 resource "aws_iam_role" "bastion" {
   name               = "eks-gateway-bastion"
-  description        = "Instance role for the gateway bastion — SSM Session Manager access only"
+  description        = "Instance role for the gateway bastion - SSM Session Manager access only"
   assume_role_policy = data.aws_iam_policy_document.bastion_assume.json
 }
 
