@@ -58,6 +58,38 @@ jobs:
           ID=$(terraform output -raw runner_instance_id)
           echo "::notice::Runner instance: $ID"
           echo "::notice::SSM: aws ssm start-session --target $ID --region ${{ env.AWS_REGION }}"
+          echo "RUNNER_INSTANCE_ID=$ID" >> "$GITHUB_ENV"
+      - name: Verify user-data via SSM
+        env:
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        run: |
+          ID="$RUNNER_INSTANCE_ID"
+
+          echo "Waiting for SSM agent to register on $ID..."
+          for i in $(seq 1 20); do
+            STATUS=$(aws ssm describe-instance-information \
+              --filters "Key=InstanceIds,Values=$ID" \
+              --query "InstanceInformationList[0].PingStatus" --output text 2>/dev/null || echo "None")
+            [ "$STATUS" = "Online" ] && break
+            echo "  attempt $i/20 — status: $STATUS"
+            sleep 15
+          done
+          [ "$STATUS" = "Online" ] || { echo "::error::SSM agent never came online"; exit 1; }
+
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$ID" \
+            --document-name AWS-RunShellScript \
+            --parameters '{"commands":["systemctl is-active actions.runner.*.service && echo OK || echo FAIL"]}' \
+            --query "Command.CommandId" --output text)
+
+          echo "Waiting for command $CMD_ID..."
+          aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$ID"
+
+          RESULT=$(aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id "$ID" \
+            --query "StandardOutputContent" --output text)
+          echo "Runner service status: $RESULT"
+          echo "$RESULT" | grep -q "^OK" || { echo "::error::Runner service not active"; exit 1; }
 
   destroy:
     if: ${{ inputs.action == 'destroy' }}
