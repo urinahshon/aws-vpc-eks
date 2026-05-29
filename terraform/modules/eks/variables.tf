@@ -66,6 +66,16 @@ variable "endpoint_private_access" {
   default = true
 }
 
+variable "authentication_mode" {
+  description = "EKS cluster authentication mode. API_AND_CONFIG_MAP enables Access Entries alongside the legacy aws-auth ConfigMap."
+  type        = string
+  default     = "API_AND_CONFIG_MAP"
+  validation {
+    condition     = contains(["CONFIG_MAP", "API", "API_AND_CONFIG_MAP"], var.authentication_mode)
+    error_message = "Must be one of CONFIG_MAP, API, or API_AND_CONFIG_MAP."
+  }
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
