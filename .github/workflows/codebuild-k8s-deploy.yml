@@ -1,0 +1,133 @@
+name: CodeBuild — K8s Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      nlb_hostname:
+        description: "Backend internal NLB hostname (leave empty to deploy backend first)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-west-1' }}
+
+jobs:
+  deploy-backend:
+    name: Deploy backend (CodeBuild)
+    runs-on: ubuntu-latest
+    if: ${{ inputs.nlb_hostname == '' }}
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      nlb_hostname: ${{ steps.nlb.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Stage k8s/backend manifests to S3
+        run: |
+          aws s3 sync k8s/backend/ \
+            s3://aws-vpc-eks-tfstate-721500739616/artifacts/k8s/backend/ \
+            --delete
+
+      - name: Start CodeBuild — backend
+        id: start
+        run: |
+          BUILD_ID=$(aws codebuild start-build \
+            --project-name k8s-deploy-backend \
+            --environment-variables-override \
+              "name=BACKEND_IRSA_ROLE_ARN,value=${{ secrets.BACKEND_IRSA_ROLE_ARN }},type=PLAINTEXT" \
+            --query 'build.id' --output text)
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for CodeBuild — backend
+        run: |
+          while true; do
+            STATUS=$(aws codebuild batch-get-builds \
+              --ids "${{ steps.start.outputs.build_id }}" \
+              --query 'builds[0].buildStatus' --output text)
+            echo "Build status: $STATUS"
+            case "$STATUS" in
+              SUCCEEDED) echo "Build succeeded"; break ;;
+              FAILED|FAULT|STOPPED|TIMED_OUT)
+                echo "::error::CodeBuild backend build failed: $STATUS"
+                exit 1 ;;
+            esac
+            sleep 30
+          done
+
+      - name: Read NLB hostname from SSM
+        id: nlb
+        run: |
+          H=$(aws ssm get-parameter \
+            --name /codebuild/backend-nlb-hostname \
+            --query 'Parameter.Value' --output text)
+          echo "value=$H" >> "$GITHUB_OUTPUT"
+          echo "::notice::Backend NLB hostname: $H"
+
+  deploy-gateway:
+    name: Deploy gateway (CodeBuild)
+    runs-on: ubuntu-latest
+    needs: [deploy-backend]
+    if: always() && (needs.deploy-backend.result == 'success' || inputs.nlb_hostname != '')
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve NLB hostname
+        id: nlb
+        run: |
+          H="${{ inputs.nlb_hostname || needs.deploy-backend.outputs.nlb_hostname }}"
+          if [ -z "$H" ]; then
+            echo "::error::No NLB hostname available"
+            exit 1
+          fi
+          echo "value=$H" >> "$GITHUB_OUTPUT"
+
+      - name: Stage k8s/gateway manifests to S3
+        run: |
+          aws s3 sync k8s/gateway/ \
+            s3://aws-vpc-eks-tfstate-721500739616/artifacts/k8s/gateway/ \
+            --delete
+
+      - name: Start CodeBuild — gateway
+        id: start
+        run: |
+          BUILD_ID=$(aws codebuild start-build \
+            --project-name k8s-deploy-gateway \
+            --environment-variables-override \
+              "name=GATEWAY_IRSA_ROLE_ARN,value=${{ secrets.GATEWAY_IRSA_ROLE_ARN }},type=PLAINTEXT" \
+              "name=NLB_HOSTNAME,value=${{ steps.nlb.outputs.value }},type=PLAINTEXT" \
+            --query 'build.id' --output text)
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for CodeBuild — gateway
+        run: |
+          while true; do
+            STATUS=$(aws codebuild batch-get-builds \
+              --ids "${{ steps.start.outputs.build_id }}" \
+              --query 'builds[0].buildStatus' --output text)
+            echo "Build status: $STATUS"
+            case "$STATUS" in
+              SUCCEEDED) echo "Build succeeded"; break ;;
+              FAILED|FAULT|STOPPED|TIMED_OUT)
+                echo "::error::CodeBuild gateway build failed: $STATUS"
+                exit 1 ;;
+            esac
+            sleep 30
+          done

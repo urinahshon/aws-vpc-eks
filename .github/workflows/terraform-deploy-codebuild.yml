@@ -1,0 +1,36 @@
+name: Terraform Deploy — CodeBuild
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION:      ${{ vars.AWS_REGION || 'us-west-1' }}
+  TF_CODEBUILD:    terraform/environments/codebuild
+
+jobs:
+  apply:
+    name: Apply codebuild
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.15.4" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Init
+        working-directory: ${{ env.TF_CODEBUILD }}
+        run: terraform init
+      - name: Apply
+        working-directory: ${{ env.TF_CODEBUILD }}
+        run: |
+          terraform apply -auto-approve -input=false \
+            -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" \
+            -var="tf_state_bucket=aws-vpc-eks-tfstate-721500739616"
