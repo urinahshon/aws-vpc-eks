@@ -53,6 +53,10 @@ data "aws_iam_policy_document" "vpc_networking" {
       "ec2:CreateTags", "ec2:DeleteTags", "ec2:DescribeTags",
       "ec2:DescribeAvailabilityZones", "ec2:DescribeAccountAttributes",
       "ec2:DescribeNetworkInterfaces",
+      "ec2:CreateVpcEndpoint", "ec2:DeleteVpcEndpoints",
+      "ec2:ModifyVpcEndpoint", "ec2:DescribeVpcEndpoints",
+      "ec2:DescribeVpcEndpointServices",
+      "ec2:DescribePrefixLists",
       "sts:GetCallerIdentity",
     ]
     resources = ["*"]
@@ -68,6 +72,8 @@ data "aws_iam_policy_document" "security_groups" {
       "ec2:RevokeSecurityGroupIngress", "ec2:RevokeSecurityGroupEgress",
       "ec2:DescribeSecurityGroups", "ec2:DescribeSecurityGroupRules",
       "ec2:ModifySecurityGroupRules",
+      "ec2:UpdateSecurityGroupRuleDescriptionsIngress",
+      "ec2:UpdateSecurityGroupRuleDescriptionsEgress",
     ]
     resources = ["*"]
   }
@@ -87,6 +93,10 @@ data "aws_iam_policy_document" "eks" {
       "eks:UpdateNodegroupVersion", "eks:ListNodegroups",
       "eks:AssociateIdentityProviderConfig", "eks:DisassociateIdentityProviderConfig",
       "eks:DescribeIdentityProviderConfig", "eks:ListIdentityProviderConfigs",
+      "eks:CreateAccessEntry", "eks:DeleteAccessEntry",
+      "eks:DescribeAccessEntry", "eks:ListAccessEntries",
+      "eks:AssociateAccessPolicy", "eks:DisassociateAccessPolicy",
+      "eks:ListAssociatedAccessPolicies",
     ]
     resources = ["*"]
   }
@@ -316,4 +326,61 @@ resource "aws_iam_role_policy" "runner_infra" {
   name   = "runner-infra"
   role   = aws_iam_role.ci.name
   policy = data.aws_iam_policy_document.runner_infra.json
+}
+
+# ── CodeBuild (projects, builds, log groups, SSM params) ─────────────────────
+
+data "aws_iam_policy_document" "codebuild_manage" {
+  statement {
+    sid = "CodeBuildProjects"
+    actions = [
+      "codebuild:CreateProject", "codebuild:DeleteProject",
+      "codebuild:UpdateProject", "codebuild:BatchGetProjects",
+      "codebuild:ListProjects",
+      "codebuild:StartBuild", "codebuild:StopBuild",
+      "codebuild:BatchGetBuilds", "codebuild:ListBuildsForProject",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "CloudWatchLogsForCodeBuild"
+    actions = [
+      "logs:CreateLogGroup", "logs:DeleteLogGroup",
+      "logs:DescribeLogGroups", "logs:PutRetentionPolicy",
+      "logs:TagLogGroup",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "SSMCodeBuildParams"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+    ]
+    resources = [
+      "arn:aws:ssm:*:${var.aws_account_id}:parameter/codebuild/*",
+    ]
+  }
+
+  # PassRole to codebuild.amazonaws.com for the sentinel-codebuild-* service role
+  statement {
+    sid     = "PassRoleToCodeBuild"
+    actions = ["iam:PassRole"]
+    resources = [
+      "arn:aws:iam::${var.aws_account_id}:role/sentinel-codebuild-*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["codebuild.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "codebuild_manage" {
+  name   = "codebuild-manage"
+  role   = aws_iam_role.ci.name
+  policy = data.aws_iam_policy_document.codebuild_manage.json
 }
