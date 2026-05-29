@@ -300,6 +300,16 @@ data "aws_iam_policy_document" "runner_infra" {
     ]
   }
 
+  statement {
+    sid = "SSMRunnerVerify"
+    actions = [
+      "ssm:SendCommand",
+      "ssm:GetCommandInvocation",
+      "ssm:DescribeInstanceInformation",
+    ]
+    resources = ["*"]
+  }
+
 }
 
 resource "aws_iam_role_policy" "runner_infra" {
