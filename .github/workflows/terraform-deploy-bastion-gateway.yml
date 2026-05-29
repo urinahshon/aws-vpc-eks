@@ -1,0 +1,49 @@
+name: Terraform Deploy — Bastion Gateway
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action"
+        required: true
+        default: apply
+        type: choice
+        options: [apply, destroy]
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION:   ${{ vars.AWS_REGION || 'us-west-1' }}
+  TF_BASTION:   terraform/environments/gateway/bastion
+
+jobs:
+  apply:
+    name: ${{ inputs.action }} gateway/bastion
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.action == 'destroy' && 'backend-runner' || '' }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.15.4" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/sentinel-github-actions-urinahshon
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Init
+        working-directory: ${{ env.TF_BASTION }}
+        run: terraform init
+      - name: ${{ inputs.action }}
+        working-directory: ${{ env.TF_BASTION }}
+        run: |
+          terraform ${{ inputs.action }} -auto-approve -input=false \
+            -var="tf_state_bucket=aws-vpc-eks-tfstate-721500739616"
+      - name: Print connect command
+        if: inputs.action == 'apply'
+        working-directory: ${{ env.TF_BASTION }}
+        run: |
+          ID=$(terraform output -raw instance_id)
+          echo "::notice::Connect: aws ssm start-session --target $ID --region ${{ env.AWS_REGION }}"
