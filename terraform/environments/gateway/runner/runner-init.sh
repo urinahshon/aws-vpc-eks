@@ -20,18 +20,25 @@ chmod +x /usr/local/bin/kubectl
 # ── Runner user ───────────────────────────────────────────────────────────────
 useradd -m -s /bin/bash runner 2>/dev/null || true
 
-# ── Resolve latest GitHub Actions runner version ──────────────────────────────
-RUNNER_VERSION=$(curl -sf \
+# ── Resolve latest GitHub Actions runner version + SHA256 ─────────────────────
+RELEASE_JSON=$(curl -sf \
   -H "Authorization: Bearer $PAT" \
   -H "Accept: application/vnd.github+json" \
-  "https://api.github.com/repos/actions/runner/releases/latest" \
-  | jq -r '.tag_name' | sed 's/^v//')
+  "https://api.github.com/repos/actions/runner/releases/latest")
 
-# ── Download and extract runner ───────────────────────────────────────────────
-mkdir -p $RUNNER_DIR
-curl -sLo /tmp/runner.tar.gz \
+RUNNER_VERSION=$(echo "$RELEASE_JSON" | jq -r '.tag_name' | sed 's/^v//')
+RUNNER_HASH=$(echo "$RELEASE_JSON" | jq -r '.body' \
+  | grep "linux-x64-$RUNNER_VERSION" | grep -oE '[0-9a-f]{64}' | head -1)
+
+# ── Download, validate, and extract runner ────────────────────────────────────
+TARBALL="/tmp/runner.tar.gz"
+curl -sLo "$TARBALL" \
   "https://github.com/actions/runner/releases/download/v$RUNNER_VERSION/actions-runner-linux-x64-$RUNNER_VERSION.tar.gz"
-tar xzf /tmp/runner.tar.gz -C $RUNNER_DIR
+
+echo "$RUNNER_HASH  $TARBALL" | sha256sum -c
+
+mkdir -p $RUNNER_DIR
+tar xzf "$TARBALL" -C $RUNNER_DIR
 chown -R runner:runner $RUNNER_DIR
 
 # ── Exchange PAT for a short-lived runner registration token ─────────────────
