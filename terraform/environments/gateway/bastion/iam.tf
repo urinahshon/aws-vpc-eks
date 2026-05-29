@@ -19,6 +19,20 @@ resource "aws_iam_role_policy_attachment" "ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+data "aws_iam_policy_document" "eks_describe" {
+  statement {
+    sid       = "EKSDescribe"
+    actions   = ["eks:DescribeCluster"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "eks_describe" {
+  name   = "eks-describe"
+  role   = aws_iam_role.bastion.name
+  policy = data.aws_iam_policy_document.eks_describe.json
+}
+
 resource "aws_iam_instance_profile" "bastion" {
   name = "eks-gateway-bastion"
   role = aws_iam_role.bastion.name
