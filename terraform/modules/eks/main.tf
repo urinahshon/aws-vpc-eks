@@ -17,6 +17,13 @@ resource "aws_eks_cluster" "this" {
   enabled_cluster_log_types = ["api", "audit", "authenticator"]
 
   tags = merge(var.tags, { Name = var.cluster_name })
+
+  # bootstrap_cluster_creator_admin_permissions is ForceNew and only meaningful
+  # at cluster creation. Ignoring it prevents a destroy-and-recreate when
+  # access_config is added to a cluster that was created without this block.
+  lifecycle {
+    ignore_changes = [access_config[0].bootstrap_cluster_creator_admin_permissions]
+  }
 }
 
 # Minimal launch template — sole purpose is attaching the pre-created node SG
