@@ -14,6 +14,16 @@ resource "aws_security_group" "bastion" {
   tags = { Name = "eks-gateway-bastion" }
 }
 
+resource "aws_security_group_rule" "bastion_to_gateway_eks_api" {
+  description              = "Bastion to gateway EKS API server (kubectl)"
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.bastion.id
+  security_group_id        = data.terraform_remote_state.gateway_network.outputs.cluster_sg_id
+}
+
 resource "aws_instance" "bastion" {
   ami                    = data.aws_ami.al2023.id
   instance_type          = var.instance_type
