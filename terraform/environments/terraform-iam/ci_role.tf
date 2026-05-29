@@ -348,7 +348,7 @@ data "aws_iam_policy_document" "codebuild_manage" {
     actions = [
       "logs:CreateLogGroup", "logs:DeleteLogGroup",
       "logs:DescribeLogGroups", "logs:PutRetentionPolicy",
-      "logs:TagLogGroup",
+      "logs:TagLogGroup", "logs:ListTagsForResource",
     ]
     resources = ["*"]
   }

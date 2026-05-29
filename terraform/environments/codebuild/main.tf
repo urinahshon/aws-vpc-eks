@@ -42,7 +42,7 @@ resource "aws_codebuild_project" "k8s_backend" {
 
   source {
     type      = "NO_SOURCE"
-    buildspec = file("${path.module}/../../../buildspec/k8s-deploy-backend.yml")
+    buildspec = file("${path.module}/buildspec/k8s-deploy-backend.yml")
   }
 
   artifacts {
@@ -96,7 +96,7 @@ resource "aws_codebuild_project" "k8s_gateway" {
 
   source {
     type      = "NO_SOURCE"
-    buildspec = file("${path.module}/../../../buildspec/k8s-deploy-gateway.yml")
+    buildspec = file("${path.module}/buildspec/k8s-deploy-gateway.yml")
   }
 
   artifacts {
