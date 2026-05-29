@@ -14,6 +14,16 @@ resource "aws_security_group" "bastion" {
   tags = { Name = "eks-gateway-bastion" }
 }
 
+resource "aws_security_group_rule" "bastion_to_backend_eks_api" {
+  description       = "Bastion to backend EKS API server via VPC peering (kubectl)"
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = [data.terraform_remote_state.gateway_network.outputs.vpc_cidr]
+  security_group_id = data.terraform_remote_state.backend_network.outputs.cluster_sg_id
+}
+
 resource "aws_security_group_rule" "bastion_to_gateway_eks_api" {
   description              = "Bastion to gateway EKS API server (kubectl)"
   type                     = "ingress"
